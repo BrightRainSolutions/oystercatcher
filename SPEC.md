@@ -17,7 +17,7 @@ Family members only, accounts added by hand. Everyone sees all visits. No public
 | Geocoding | Nominatim (OSM) | Search-to-fly only. Max 1 request/sec, debounce input, show OSM attribution. |
 | Local storage | `idb-keyval` | Offline queue for photos and pending writes |
 | Hosting | Netlify (static) | SPA redirect: `/* /index.html 200` |
-| Repo | `BrightRainSolutions/oystercatcher` | Private (matters for the keep-alive workflow, see 9) |
+| Repo | `BrightRainSolutions/oystercatcher` | Public (Netlify's free plan won't build private org repos). No secrets in the repo. |
 
 Environment variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. The anon key is safe in the client because RLS does the gating.
 
@@ -241,10 +241,9 @@ Oyster bars have bad signal. Writes must not fail just because the network is go
 
 ## 9. Keep-alive
 
-Supabase free projects pause after about a week of low activity. Add `.github/workflows/keepalive.yml`:
+Supabase free projects pause after about a week of low activity. Use a Netlify Scheduled Function (`netlify/functions/keepalive.mjs`), not a GitHub Action: GitHub disables scheduled workflows on public repos after 60 days without commits, and this needs zero babysitting.
 - Cron daily (pick an odd minute, not :00).
-- `curl` a `select id from oysters limit 1` via the REST endpoint with the anon key from repo secrets (`SUPABASE_URL`, `SUPABASE_ANON_KEY`). Needs an RLS policy or a tiny `keepalive` table readable by `anon`; prefer the latter so the anon key can't read real data.
-- Repo stays private (GitHub disables scheduled workflows on public repos after 60 days without commits).
+- Read `select id from keepalive limit 1` via the REST endpoint with the anon key, reusing the site's `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` env vars. A tiny `keepalive` table readable by `anon` means the anon key can't read real data.
 
 ---
 
@@ -277,7 +276,7 @@ This should not look like a default CRUD app. It needs pop and personality:
 4. See Oyster Dates list, visit detail, oyster detail.
 5. Map: list/map toggle, both layers, pin picker with Nominatim.
 6. Offline queue and conflict remapping.
-7. Keep-alive workflow, Netlify deploy, test install on family members' phones.
+7. Netlify deploy (with the keep-alive scheduled function), test install on family members' phones.
 
 ## 13. Acceptance checks
 
@@ -286,4 +285,4 @@ This should not look like a default CRUD app. It needs pop and personality:
 - Photo taken in airplane mode appears immediately and uploads after reconnecting.
 - Ratings from one user cannot be edited by any other (verify via RLS, not just UI).
 - Map shows origins colored by rating and both seeded places.
-- Keep-alive workflow runs green.
+- Keep-alive function runs green in Netlify's function logs.
