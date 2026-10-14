@@ -26,8 +26,9 @@ npm run dev
 4. Auth → Users → "Add user" for each family member (auto-confirm). Signups stay off; adding someone later is the same two steps. Then in the SQL editor, one row per person with a distinct color:
    ```sql
    insert into public.profiles (id, display_name, color) values
-     ('<david-user-uuid>', 'David', '#ff6b5a'),
-     ('<user-uuid>',       '<Name>', '#2bb3a3');
+     ('<user-uuid>',       '<Name>', '#ff6b5a'),
+     ('<user-uuid>',       '<Name>', '#2bb3a3'),
+     ...;
    ```
    Colors that read well together: `#ff6b5a` `#2bb3a3` `#f2a91e` `#7a5cff` `#3f7a52` `#e05297` `#1d74a8` `#a8642a`.
 

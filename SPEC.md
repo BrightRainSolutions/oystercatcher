@@ -159,13 +159,13 @@ Slider endpoints, low to high. Keep the copy playful.
 - Supabase CLI migrations are the source of truth: SQL files in `supabase/migrations/`, applied with `supabase db push` against the linked project. Seed data in `supabase/seed.sql`.
 - Never change schema only through the dashboard or MCP. If a change is made that way for debugging, capture it as a migration before committing.
 - The Supabase MCP server, if configured, runs read-only and scoped to this project; use it for inspection and debugging.
-- David provides the project ref, database password, and a personal access token.
+- The project owner provides the project ref, database password, and a personal access token.
 
 ---
 
 ## 4. Auth and security
 
-- Supabase Auth, email + password (or magic link). **Signups disabled** in the dashboard. David creates each family member's account by hand and inserts their `profiles` row (distinct color per person).
+- Supabase Auth, email + password (or magic link). **Signups disabled** in the dashboard. The project owner creates each family member's account by hand and inserts their `profiles` row (distinct color per person).
 - RLS on every table:
   - `oysters`, `places`, `visits`, `tastings`, `photos`: any authenticated user can select, insert, update. Delete only by `created_by`.
   - `ratings`: any authenticated user can select. Insert, update, delete only where `user_id = auth.uid()`.
