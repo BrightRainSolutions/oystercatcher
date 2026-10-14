@@ -14,7 +14,7 @@ import ShellRating from '../components/ShellRating.vue'
 
 const route = useRoute()
 const router = useRouter()
-const { people, user } = useAuth()
+const { user, peopleFor } = useAuth()
 const { aliases, resolveId } = useQueue()
 
 const bundle = ref(null)
@@ -41,10 +41,14 @@ const extraPhotos = computed(() =>
   (bundle.value?.photos || []).filter((p) => !p.tasting_id && p.id !== visit.value?.cover_photo_id),
 )
 
+// Everyone who rated this tasting, me first then by name.
+const ratersOf = (t) => peopleFor(t.ratings.map((r) => r.user_id))
+
 function rowsFor(t) {
+  const raters = ratersOf(t)
   return ALL_SCORES.map((a) => ({
     label: a.label,
-    values: people.value.map((p) => ({ color: p.color, value: t.ratings.find((r) => r.user_id === p.id)?.[a.key] ?? null })),
+    values: raters.map((p) => ({ color: p.color, value: ratingOf(t, p.id)?.[a.key] ?? null })),
   }))
 }
 const ratingOf = (t, pid) => t.ratings.find((r) => r.user_id === pid)
@@ -118,22 +122,27 @@ const editTo = (step) => ({ name: 'add', params: { visitId: visit.value.id }, qu
             </div>
           </header>
 
-          <div class="people">
-            <div v-for="p in people" :key="p.id" class="person">
-              <div class="pname" :style="{ color: p.color }">{{ p.display_name }}</div>
-              <template v-if="p.id === user?.id || iRated(t)">
+          <p v-if="!t.ratings.length" class="small muted">Nobody has rated this one yet.</p>
+          <ul v-else class="people">
+            <li v-for="p in ratersOf(t)" :key="p.id" class="person" :style="{ '--c': p.color }">
+              <div class="row">
+                <span class="pname">{{ p.display_name }}</span>
+                <div class="spacer" />
                 <ShellRating :model-value="ratingOf(t, p.id)?.overall ?? null" readonly :size="22" :color="p.color" />
+              </div>
+              <!-- Others' overall is always visible (like the badge); the rest waits until you've rated. -->
+              <template v-if="p.id === user?.id || iRated(t)">
                 <div class="small">
                   <span v-if="ratingOf(t, p.id)?.would_order_again === true" class="again yes">Would order again</span>
                   <span v-else-if="ratingOf(t, p.id)?.would_order_again === false" class="again no">Once was enough</span>
                 </div>
                 <p v-if="ratingOf(t, p.id)?.note" class="note">“{{ ratingOf(t, p.id).note }}”</p>
               </template>
-              <p v-else class="small muted">Rate it first to peek.</p>
-            </div>
-          </div>
+            </li>
+          </ul>
+          <p v-if="t.ratings.length && !iRated(t)" class="small muted">Rate it to see everyone's full scores. No peeking.</p>
 
-          <PairedBars v-if="iRated(t)" :rows="rowsFor(t)" />
+          <PairedBars v-if="iRated(t)" :rows="rowsFor(t)" :legend="ratersOf(t)" />
 
           <div v-if="closeups(t).length" class="closeups">
             <button v-for="p in closeups(t)" :key="p.id" class="cu" @click="viewer = p">
@@ -185,8 +194,10 @@ const editTo = (step) => ({ name: 'add', params: { visitId: visit.value.id }, qu
   font-size: 1.35rem;
   text-decoration: none;
 }
-.people { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 12px 0 14px; }
-.pname { font-weight: 800; margin-bottom: 2px; }
+.people { list-style: none; padding: 0; margin: 12px 0 14px; }
+.person { border-left: 4px solid var(--c); padding: 4px 0 4px 10px; }
+.person + .person { margin-top: 8px; }
+.pname { font-weight: 800; color: var(--c); }
 .again { font-weight: 700; }
 .again.yes { color: var(--kelp); }
 .again.no { color: var(--muted); }

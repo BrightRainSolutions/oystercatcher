@@ -1,8 +1,10 @@
 <script setup>
-// One row per attribute, one bar per person, in that person's color.
-// rows: [{ label, low, high, values: [{ color, value, name }] }]
+// Grouped bars: one group per attribute, one bar per person, in that person's color.
+// rows: [{ label, low, high, values: [{ color, value }] }]
+// legend: optional [{ id, display_name, color }] in the same order as values
 defineProps({
   rows: { type: Array, required: true },
+  legend: { type: Array, default: () => [] },
   showEnds: { type: Boolean, default: false },
 })
 const pct = (v) => (v == null ? 0 : (Number(v) / 5) * 100)
@@ -11,6 +13,11 @@ const fmt = (v) => (v == null ? '–' : Number(v) % 1 ? Number(v).toFixed(1) : S
 
 <template>
   <div class="bars">
+    <div v-if="legend.length > 1" class="legend">
+      <span v-for="p in legend" :key="p.id" class="key">
+        <span class="sw" :style="{ background: p.color }" />{{ p.display_name }}
+      </span>
+    </div>
     <div v-for="row in rows" :key="row.label" class="attr">
       <div class="name">
         {{ row.label }}
@@ -27,6 +34,9 @@ const fmt = (v) => (v == null ? '–' : Number(v) % 1 ? Number(v).toFixed(1) : S
 </template>
 
 <style scoped>
+.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-bottom: 10px; font-size: 0.85rem; font-weight: 700; }
+.key { display: inline-flex; align-items: center; gap: 5px; }
+.sw { width: 10px; height: 10px; border-radius: 50%; }
 .attr + .attr { margin-top: 10px; }
 .name { font-weight: 700; font-size: 0.9rem; margin-bottom: 3px; }
 .line { display: flex; align-items: center; gap: 8px; }

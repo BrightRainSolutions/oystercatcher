@@ -1,6 +1,6 @@
 # OysterCatcher
 
-A private PWA for two people to log Oyster Dates, rate each oyster separately, keep The Photo, and map where the oysters came from. See [SPEC.md](SPEC.md).
+A private family PWA to log Oyster Dates, rate each oyster separately, keep The Photo, and map where the oysters came from. See [SPEC.md](SPEC.md).
 
 Vue 3 + Vite, Supabase (Postgres/PostGIS, Auth, Storage), MapLibre on OpenFreeMap, offline write queue in IndexedDB.
 
@@ -23,12 +23,13 @@ npm run dev
    ```
 3. Auth → Providers → Email: turn **off** "Allow new users to sign up".
    Auth → URL Configuration: set Site URL to the Netlify URL and add it (and `http://localhost:5173`) to Redirect URLs, so magic links work.
-4. Auth → Users → "Add user" for both people (auto-confirm). Then in the SQL editor:
+4. Auth → Users → "Add user" for each family member (auto-confirm). Signups stay off; adding someone later is the same two steps. Then in the SQL editor, one row per person with a distinct color:
    ```sql
    insert into public.profiles (id, display_name, color) values
      ('<david-user-uuid>', 'David', '#ff6b5a'),
-     ('<her-user-uuid>',   '<Name>', '#2bb3a3');
+     ('<user-uuid>',       '<Name>', '#2bb3a3');
    ```
+   Colors that read well together: `#ff6b5a` `#2bb3a3` `#f2a91e` `#7a5cff` `#3f7a52` `#e05297` `#1d74a8` `#a8642a`.
 
 Schema changes go in `supabase/migrations/` and are applied with `npx supabase db push`. Never change the schema only through the dashboard.
 

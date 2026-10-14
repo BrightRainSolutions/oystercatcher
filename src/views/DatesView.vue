@@ -11,7 +11,9 @@ import OysterMap from '../components/OysterMap.vue'
 
 const route = useRoute()
 const router = useRouter()
-const { people } = useAuth()
+const { peopleFor, shortName } = useAuth()
+// Everyone who rated something that night, me first.
+const raters = (v) => peopleFor(Object.keys(v.avg_overall_by_user || {}))
 
 const mode = computed(() => (route.query.view === 'map' ? 'map' : 'list'))
 const setMode = (m) => router.replace({ query: m === 'map' ? { view: 'map' } : {} })
@@ -73,17 +75,16 @@ const fmt = (v) => (v == null ? '–' : Number(v).toFixed(1))
         <div class="meta">
           <div class="when small">{{ relativeDay(v.visited_on) }}</div>
           <h3>{{ v.place_name || 'Home' }}</h3>
-          <div class="row small muted">
-            <span>{{ v.tasting_count || 0 }} oyster{{ v.tasting_count === 1 ? '' : 's' }}</span>
-            <div class="spacer" />
+          <div class="small muted">{{ v.tasting_count || 0 }} oyster{{ v.tasting_count === 1 ? '' : 's' }}</div>
+          <div v-if="raters(v).length" class="scores small">
             <span
-              v-for="p in people"
+              v-for="p in raters(v)"
               :key="p.id"
               class="score"
               :style="{ background: p.color }"
               :title="`${p.display_name}'s average`"
             >
-              {{ p.display_name.slice(0, 1) }} {{ fmt(v.avg_overall_by_user?.[p.id]) }}
+              {{ shortName(p) }} {{ fmt(v.avg_overall_by_user[p.id]) }}
             </span>
           </div>
         </div>
@@ -133,6 +134,7 @@ const fmt = (v) => (v == null ? '–' : Number(v).toFixed(1))
 .meta { padding: 12px 16px 14px; }
 .meta h3 { margin: 2px 0 6px; font-size: 1.4rem; }
 .when { color: var(--coral); font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; }
+.scores { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .score {
   color: #fff;
   font-weight: 800;

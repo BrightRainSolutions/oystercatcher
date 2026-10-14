@@ -163,6 +163,18 @@ export async function loadVisitSummaries(opts) {
   const known = new Map(rows.map((r) => [r.id, r]))
   const places = Object.fromEntries((await placesP).map((p) => [p.id, p]))
   const tastingCount = (vid) => Object.values(shadow.tastings).filter((t) => t.visit_id === vid).length
+  // Per-person average overall from ratings still on this phone (visit not synced yet).
+  const localAverages = (vid) => {
+    const tids = new Set(Object.values(shadow.tastings).filter((t) => t.visit_id === vid).map((t) => t.id))
+    const sums = {}
+    for (const r of Object.values(shadow.ratings)) {
+      if (!tids.has(r.tasting_id) || r.overall == null) continue
+      const s = (sums[r.user_id] ||= { total: 0, n: 0 })
+      s.total += r.overall
+      s.n += 1
+    }
+    return Object.fromEntries(Object.entries(sums).map(([uid, s]) => [uid, Math.round((s.total / s.n) * 100) / 100]))
+  }
 
   for (const s of Object.values(shadow.visits)) {
     const base = known.get(s.id)
@@ -175,7 +187,7 @@ export async function loadVisitSummaries(opts) {
         place_name: p?.name ?? null,
         place_city: p?.city ?? null,
         tasting_count: tastingCount(s.id),
-        avg_overall_by_user: {},
+        avg_overall_by_user: localAverages(s.id),
         _local: true,
       })
     }

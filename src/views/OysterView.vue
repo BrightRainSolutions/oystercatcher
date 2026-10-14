@@ -11,7 +11,7 @@ import PairedBars from '../components/PairedBars.vue'
 import PhotoImg from '../components/PhotoImg.vue'
 
 const route = useRoute()
-const { people } = useAuth()
+const { peopleFor, shortName } = useAuth()
 const bundle = ref(null)
 const loading = ref(true)
 
@@ -24,11 +24,18 @@ watch(() => route.params.id, load)
 
 const o = computed(() => bundle.value?.oyster)
 const statFor = (pid) => bundle.value?.stats.find((s) => s.user_id === pid)
+// Everyone who has rated this oyster at least once, me first.
+const raters = computed(() => peopleFor((bundle.value?.stats || []).map((s) => s.user_id)))
+// Legend shows how many times each person has rated it.
+const legend = computed(() =>
+  raters.value.map((p) => ({ ...p, display_name: `${p.display_name} (${statFor(p.id)?.tasting_count || 0})` })),
+)
+const ratersOf = (t) => peopleFor((t.ratings || []).filter((r) => r.overall != null).map((r) => r.user_id))
 
 const rows = computed(() =>
   ALL_SCORES.map((a) => ({
     label: a.label,
-    values: people.value.map((p) => ({ color: p.color, value: statFor(p.id)?.[`avg_${a.key}`] ?? null })),
+    values: raters.value.map((p) => ({ color: p.color, value: statFor(p.id)?.[`avg_${a.key}`] ?? null })),
   })),
 )
 const overallOf = (t, pid) => t.ratings?.find((r) => r.user_id === pid)?.overall ?? null
@@ -66,17 +73,11 @@ const thumbOf = (t) => t.photos?.[0]?.thumb_path || t.visit?.cover?.thumb_path |
       </section>
 
       <section v-if="bundle.stats.length" class="card">
-        <div class="row legend">
-          <h3>Our averages</h3>
-          <div class="spacer" />
-          <span v-for="p in people" :key="p.id" class="small" :style="{ color: p.color, fontWeight: 800 }">
-            {{ p.display_name }} ({{ statFor(p.id)?.tasting_count || 0 }})
-          </span>
-        </div>
-        <PairedBars :rows="rows" />
+        <h3>Family averages</h3>
+        <PairedBars :rows="rows" :legend="legend" />
         <p class="small muted">
-          <span v-for="p in people" :key="p.id">
-            {{ p.display_name }} would order again:
+          <span v-for="p in raters" :key="p.id">
+            {{ shortName(p) }} would order again:
             {{ statFor(p.id)?.would_order_again_pct != null ? `${statFor(p.id).would_order_again_pct}%` : '–' }}.
           </span>
         </p>
@@ -92,8 +93,14 @@ const thumbOf = (t) => t.photos?.[0]?.thumb_path || t.visit?.cover?.thumb_path |
             <div class="small muted">{{ formatDate(t.visit.visited_on) }}</div>
           </div>
           <div class="overalls">
-            <span v-for="p in people" :key="p.id" class="ov" :style="{ background: p.color }">
-              {{ overallOf(t, p.id) ?? '–' }}
+            <span
+              v-for="p in ratersOf(t)"
+              :key="p.id"
+              class="ov"
+              :style="{ background: p.color }"
+              :title="`${p.display_name}: ${overallOf(t, p.id)}`"
+            >
+              {{ overallOf(t, p.id) }}
             </span>
           </div>
         </RouterLink>
@@ -114,8 +121,6 @@ const thumbOf = (t) => t.photos?.[0]?.thumb_path || t.visit?.cover?.thumb_path |
   text-decoration: none;
   border: 3px dashed var(--lemon);
 }
-.legend { gap: 8px; margin-bottom: 8px; }
-.legend h3 { margin: 0; }
 .hist {
   display: flex;
   align-items: center;
@@ -126,7 +131,7 @@ const thumbOf = (t) => t.photos?.[0]?.thumb_path || t.visit?.cover?.thumb_path |
 }
 .th { width: 64px; height: 64px; border-radius: 12px; overflow: hidden; flex: none; }
 .hmeta { flex: 1; min-width: 0; }
-.overalls { display: flex; gap: 6px; }
+.overalls { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: 45%; }
 .ov {
   display: grid;
   place-items: center;

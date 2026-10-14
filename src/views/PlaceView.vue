@@ -10,7 +10,8 @@ import MiniMap from '../components/MiniMap.vue'
 import PhotoImg from '../components/PhotoImg.vue'
 
 const route = useRoute()
-const { people } = useAuth()
+const { peopleFor, shortName } = useAuth()
+const raters = (v) => peopleFor(Object.keys(v.avg_overall_by_user || {}))
 const place = ref(null)
 const visits = ref([])
 const loading = ref(true)
@@ -40,9 +41,11 @@ const title = computed(() => place.value?.name || '')
           <strong>{{ relativeDay(v.visited_on) }}</strong>
           <div class="small muted">{{ v.tasting_count }} oysters</div>
         </div>
-        <span v-for="p in people" :key="p.id" class="sc" :style="{ background: p.color }">
-          {{ fmt(v.avg_overall_by_user?.[p.id]) }}
-        </span>
+        <div class="scores">
+          <span v-for="p in raters(v)" :key="p.id" class="sc" :style="{ background: p.color }" :title="p.display_name">
+            {{ shortName(p) }} {{ fmt(v.avg_overall_by_user[p.id]) }}
+          </span>
+        </div>
       </RouterLink>
     </main>
     <main v-else class="page empty">No such place.</main>
@@ -52,5 +55,6 @@ const title = computed(() => place.value?.name || '')
 <style scoped>
 .item { padding: 10px; text-decoration: none; }
 .th { width: 60px; height: 60px; border-radius: 12px; overflow: hidden; flex: none; }
+.scores { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: 50%; }
 .sc { color: #fff; font-weight: 800; border-radius: 999px; padding: 4px 10px; font-size: 0.85rem; }
 </style>

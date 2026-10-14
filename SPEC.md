@@ -1,8 +1,8 @@
 # OysterCatcher: Build Spec (MVP)
 
-A private PWA for two people (David and his wife) to log oyster dates, rate each oyster separately, keep The Photo, and map where the oysters came from and where we ate them.
+A private family PWA (any number of family members) to log oyster dates, rate each oyster separately, keep The Photo, and map where the oysters came from and where we ate them.
 
-Two users. No public access. iPhone home-screen install is the primary target; desktop browser should also work.
+Family members only, accounts added by hand. Everyone sees all visits. No public access. iPhone home-screen install is the primary target; desktop browser should also work.
 
 ---
 
@@ -27,7 +27,7 @@ Environment variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. The anon k
 
 - **Oyster Date** (UI) = `visits` (DB). One trip to one place on one day.
 - **Tasting** = one oyster type eaten on one Oyster Date. Shared fact.
-- **Rating** = one person's opinion of one tasting. Two per tasting, max.
+- **Rating** = one person's opinion of one tasting. At most one per person per tasting.
 - **The Photo** = the visit's cover photo (the presentation shot). Required in spirit, skippable in practice.
 
 ---
@@ -104,7 +104,7 @@ Unique on `(lower(name), coalesce(grower, ''))`.
 | price_each | numeric(6,2) | optional |
 | created_by, created_at | | |
 
-`unique (visit_id, oyster_id)`. If both people add the Kusshi, it's one tasting.
+`unique (visit_id, oyster_id)`. If two people add the Kusshi, it's one tasting.
 
 ### ratings
 | column | type | notes |
@@ -139,7 +139,7 @@ Unique on `(lower(name), coalesce(grower, ''))`.
 
 ### Views
 - **`oyster_stats`**: per oyster per person: `avg_overall`, `tasting_count`, `last_tasted`, `would_order_again_pct`. Plus a combined row (or a second view `oyster_stats_combined`). Drives map colors and oyster detail.
-- **`visit_summary`**: visit + place name + cover photo thumb path + tasting count + both people's avg overall for that night. Drives the Oyster Dates list.
+- **`visit_summary`**: visit + place name + cover photo thumb path + tasting count + each rater's avg overall for that night. Drives the Oyster Dates list.
 
 ### Attribute definitions (UI labels)
 Slider endpoints, low to high. Keep the copy playful.
@@ -165,7 +165,7 @@ Slider endpoints, low to high. Keep the copy playful.
 
 ## 4. Auth and security
 
-- Supabase Auth, email + password (or magic link). **Signups disabled** in the dashboard. David creates both accounts by hand and inserts their `profiles` rows.
+- Supabase Auth, email + password (or magic link). **Signups disabled** in the dashboard. David creates each family member's account by hand and inserts their `profiles` row (distinct color per person).
 - RLS on every table:
   - `oysters`, `places`, `visits`, `tastings`, `photos`: any authenticated user can select, insert, update. Delete only by `created_by`.
   - `ratings`: any authenticated user can select. Insert, update, delete only where `user_id = auth.uid()`.
@@ -184,22 +184,22 @@ Two big buttons, nothing else (plus a small profile/sign-out affordance):
 1. **Where and when.** Place combobox: existing places, sorted nearest-first if geolocation is granted, else most recent. Last option: **+ Add place** (inline form: name, city, pin defaults to current location, editable on a small map). Date defaults to today. Also a "Home" toggle that clears place. On continue: upsert visit on `(place_id, visited_on)` and use whatever id comes back.
 2. **The Photo.** Big camera button (`<input type="file" accept="image/*" capture="environment">`). Show the photo immediately from the local blob. Skippable. Becomes `cover_photo_id`.
 3. **What we ate.** Oyster combobox (search by name, grower, growing area), multi-add as chips. Last option: **+ Add oyster** (inline: name, grower, growing area, species, optional pin; see 6). Each chip creates a tasting (upsert on `visit_id, oyster_id`). Optional price per tasting.
-4. **Rate.** One card per tasting. Overall (big, 1 to 5 shell icons) and Would Order Again (toggle) up top. Other seven sliders in an expandable section. Note field. Small camera button per card for a close-up photo (`tasting_id` set). If the other person has already rated, show their overall as a small badge in their color, but not their full scores until you've saved yours (no anchoring).
+4. **Rate.** One card per tasting. Overall (big, 1 to 5 shell icons) and Would Order Again (toggle) up top. Other seven sliders in an expandable section. Note field. Small camera button per card for a close-up photo (`tasting_id` set). If other family members have already rated, show each one's overall as a small badge in their color, but not their full scores until you've saved yours (no anchoring).
 
 Everything autosaves. No final Submit button.
 
 ### See Oyster Dates (List / Map toggle)
-- **List:** photo cards, newest first. Thumbnail, place, date, number of oysters, both people's average overall in their colors.
+- **List:** photo cards, newest first. Thumbnail, place, date, number of oysters, each rater's average overall in their colors.
 - **Map:** MapLibre, two toggleable layers:
   - **Origins:** oysters with a pin. Circle color by combined `avg_overall` (sequential ramp), size by tasting count. Tap → oyster detail.
   - **Places:** where we've eaten. Distinct symbol. Tap → list of visits there.
   - Fit bounds to data on load. Keep it crisp and modern; no default OSM look.
 
 ### Visit detail
-The Photo full width. Place, date, notes. Each tasting: oyster name and growing area, your scores and hers side by side (simple paired bars per attribute in each person's color), Would Order Again for each, notes, close-up photos. Add another oyster or photo from here.
+The Photo full width. Place, date, notes. Each tasting: oyster name and growing area, one row per person who rated, in their profile color, with grouped bars per attribute (one bar per rater), Would Order Again for each, notes, close-up photos. Add another oyster or photo from here.
 
 ### Oyster detail
-Name, grower, growing area, species, Oysterater link if set. Mini map of origin (or "Needs a pin" button). Averages per person across all tastings (paired bars). Every time we've had it: date, place, both overalls, thumbnail.
+Name, grower, growing area, species, Oysterater link if set. Mini map of origin (or "Needs a pin" button). Averages per person who has rated it, across all tastings (grouped bars, one per person). Every time we've had it: date, place, each rater's overall, thumbnail.
 
 ### Pin picker (oyster origin)
 Full-screen MapLibre view with a draggable marker. Tap to drop, drag to adjust. Search box flies to a Nominatim result (debounced, 1 req/sec, attribution shown). **Growing area reuse:** if the oyster's `growing_area` matches another oyster that already has a pin, offer "Use the Hood Canal pin" as a one-tap option. Saving sets `location_approx = false`.
@@ -227,7 +227,7 @@ Oyster bars have bad signal. Writes must not fail just because the network is go
 **Write queue:**
 - All inserts and updates go through a small queue persisted in IndexedDB. Client-generated UUIDs mean children (tastings, ratings, photos) can reference a parent before it exists on the server.
 - Flush on `online` event, on app focus, and on a timer while pending items exist.
-- **Visit conflict:** if a queued visit upsert hits the `(place_id, visited_on)` constraint (both people created it offline), take the server's id and rewrite the local id on all queued children before flushing them. Same pattern for tastings on `(visit_id, oyster_id)`.
+- **Visit conflict:** if a queued visit upsert hits the `(place_id, visited_on)` constraint (two people created it offline), take the server's id and rewrite the local id on all queued children before flushing them. Same pattern for tastings on `(visit_id, oyster_id)`.
 - Show a subtle "3 pending" indicator when the queue isn't empty. Never block the UI on it.
 
 ---
@@ -277,13 +277,13 @@ This should not look like a default CRUD app. It needs pop and personality:
 4. See Oyster Dates list, visit detail, oyster detail.
 5. Map: list/map toggle, both layers, pin picker with Nominatim.
 6. Offline queue and conflict remapping.
-7. Keep-alive workflow, Netlify deploy, test install on both iPhones.
+7. Keep-alive workflow, Netlify deploy, test install on family members' phones.
 
 ## 13. Acceptance checks
 
-- Both iPhones can install to home screen and sign in.
-- Creating the same place + date from both phones yields one visit.
+- Each family member's phone can install to home screen and sign in.
+- Creating the same place + date from two phones yields one visit.
 - Photo taken in airplane mode appears immediately and uploads after reconnecting.
-- Ratings from one user cannot be edited by the other (verify via RLS, not just UI).
+- Ratings from one user cannot be edited by any other (verify via RLS, not just UI).
 - Map shows origins colored by rating and both seeded places.
 - Keep-alive workflow runs green.

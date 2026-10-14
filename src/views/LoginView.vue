@@ -51,7 +51,7 @@ async function magic() {
     <div class="hero">
       <img :src="bird" alt="" class="bird" />
       <h1>OysterCatcher</h1>
-      <p class="tag">Two people. A lot of oysters. Strong opinions.</p>
+      <p class="tag">One family. A lot of oysters. Strong opinions.</p>
     </div>
 
     <div v-if="!configured" class="card stack">

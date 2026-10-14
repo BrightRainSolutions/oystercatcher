@@ -17,13 +17,15 @@ const props = defineProps({
 })
 const emit = defineEmits(['changed'])
 
-const { user, me, partner, profileFor } = useAuth()
+const { user, me, profileFor, peopleFor, shortName } = useAuth()
 
 const FIELDS = [...ALL_SCORES.map((a) => a.key), 'would_order_again', 'note']
 const mine = computed(() => props.tasting.ratings?.find((r) => r.user_id === user.value?.id) ?? null)
-const theirs = computed(() => props.tasting.ratings?.find((r) => r.user_id !== user.value?.id) ?? null)
-const theirProfile = computed(() => (theirs.value ? profileFor(theirs.value.user_id) : partner.value))
-const myColor = computed(() => me.value?.color || 'var(--coral)')
+// Every other family member who has rated this one.
+const theirs = computed(() => (props.tasting.ratings || []).filter((r) => r.user_id !== user.value?.id))
+const ratingBy = (uid) => props.tasting.ratings?.find((r) => r.user_id === uid)
+const otherRaters = computed(() => peopleFor(theirs.value.map((r) => r.user_id)))
+const myColor = computed(() => me.value?.color || profileFor(user.value?.id).color)
 
 const form = reactive(Object.fromEntries(FIELDS.map((k) => [k, mine.value?.[k] ?? null])))
 const details = ref(ATTRIBUTES.some((a) => form[a.key] != null))
@@ -59,12 +61,14 @@ onBeforeUnmount(() => {
 
 const iHaveRated = computed(() => savedOnce.value && form.overall != null)
 
+// One bar per person who rated, me first.
+const compareLegend = computed(() => [{ ...profileFor(user.value?.id), color: myColor.value }, ...otherRaters.value])
 const compareRows = computed(() =>
   ALL_SCORES.map((a) => ({
     label: a.label,
     values: [
       { value: form[a.key], color: myColor.value },
-      { value: theirs.value?.[a.key] ?? null, color: theirProfile.value?.color || 'var(--kelp)' },
+      ...otherRaters.value.map((p) => ({ value: ratingBy(p.id)?.[a.key] ?? null, color: p.color })),
     ],
   })),
 )
@@ -90,14 +94,18 @@ async function onPhoto(file) {
           {{ [tasting.oyster?.grower, tasting.oyster?.growing_area].filter(Boolean).join(' · ') }}
         </p>
       </div>
-      <span
-        v-if="theirs?.overall"
-        class="their-badge"
-        :style="{ background: theirProfile?.color || 'var(--kelp)' }"
-        :title="`${theirProfile?.display_name} gave it ${theirs.overall}`"
-      >
-        {{ theirProfile?.display_name?.slice(0, 1) }} · {{ theirs.overall }}
-      </span>
+      <div v-if="otherRaters.length" class="badges">
+        <template v-for="p in otherRaters" :key="p.id">
+          <span
+            v-if="ratingBy(p.id)?.overall"
+            class="their-badge"
+            :style="{ background: p.color }"
+            :title="`${p.display_name} gave it ${ratingBy(p.id).overall}`"
+          >
+            {{ shortName(p) }} · {{ ratingBy(p.id).overall }}
+          </span>
+        </template>
+      </div>
     </header>
 
     <div class="overall">
@@ -147,13 +155,15 @@ async function onPhoto(file) {
       </div>
     </div>
 
-    <template v-if="theirs && iHaveRated">
+    <template v-if="theirs.length && iHaveRated">
       <button type="button" class="more" @click="showCompare = !showCompare">
         {{ showCompare ? 'Hide' : 'See' }} how you compare
       </button>
-      <PairedBars v-if="showCompare" :rows="compareRows" />
+      <PairedBars v-if="showCompare" :rows="compareRows" :legend="compareLegend" />
     </template>
-    <p v-else-if="theirs" class="small muted">Rate it to see {{ theirProfile?.display_name || 'their' }}'s full scores. No peeking.</p>
+    <p v-else-if="theirs.length" class="small muted">
+      Rate it to see {{ theirs.length === 1 ? `${shortName(otherRaters[0])}'s` : "everyone's" }} full scores. No peeking.
+    </p>
   </article>
 </template>
 
@@ -162,6 +172,7 @@ async function onPhoto(file) {
 .head { display: flex; align-items: flex-start; gap: 10px; justify-content: space-between; }
 .head h3 { margin: 0; font-size: 1.35rem; }
 .sub { margin: 2px 0 0; }
+.badges { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: 55%; }
 .their-badge {
   flex: none;
   color: #fff;
