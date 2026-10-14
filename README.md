@@ -1,0 +1,55 @@
+# OysterCatcher
+
+A private PWA for two people to log Oyster Dates, rate each oyster separately, keep The Photo, and map where the oysters came from. See [SPEC.md](SPEC.md).
+
+Vue 3 + Vite, Supabase (Postgres/PostGIS, Auth, Storage), MapLibre on OpenFreeMap, offline write queue in IndexedDB.
+
+## Local dev
+
+```bash
+npm install
+cp .env.example .env   # fill in VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
+npm run dev
+```
+
+## Supabase setup (one time)
+
+1. Create a free project. Note the project ref and database password.
+2. Link and push the schema plus the seed data:
+   ```bash
+   npx supabase login            # personal access token
+   npx supabase link --project-ref <ref>
+   npx supabase db push --include-seed
+   ```
+3. Auth → Providers → Email: turn **off** "Allow new users to sign up".
+   Auth → URL Configuration: set Site URL to the Netlify URL and add it (and `http://localhost:5173`) to Redirect URLs, so magic links work.
+4. Auth → Users → "Add user" for both people (auto-confirm). Then in the SQL editor:
+   ```sql
+   insert into public.profiles (id, display_name, color) values
+     ('<david-user-uuid>', 'David', '#ff6b5a'),
+     ('<her-user-uuid>',   '<Name>', '#2bb3a3');
+   ```
+
+Schema changes go in `supabase/migrations/` and are applied with `npx supabase db push`. Never change the schema only through the dashboard.
+
+## Deploy (Netlify)
+
+Connect the repo, build `npm run build`, publish `dist` (already in `netlify.toml`, including the SPA redirect). Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in Netlify's environment variables.
+
+On each iPhone: open the site in Safari → Share → Add to Home Screen.
+
+## Keep-alive
+
+`.github/workflows/keepalive.yml` pings the anon-readable `keepalive` table daily so the free project doesn't pause. Add repo secrets `SUPABASE_URL` and `SUPABASE_ANON_KEY`, then run it once by hand from the Actions tab. Keep the repo private.
+
+## How offline works
+
+- Every write goes through `src/composables/useQueue.js`, persisted in IndexedDB, flushed FIFO on `online`, focus, and a 15s timer while anything is pending.
+- Ids are generated on the phone, so children can point at parents that only exist locally.
+- Visits, tastings and new oysters are created via `find_or_create_*` RPCs. If the server already has one (the other phone got there first), the server id comes back and the local id is rewritten on every queued item.
+- Local writes also live as "shadow" records (`src/lib/data.js`) merged over server data until they sync, so everything shows up immediately.
+- Photos are resized on the phone (1600px + 400px thumb), kept in IndexedDB, shown from the local blob, then uploaded to the private `photos` bucket.
+
+## Icons
+
+`npm run icons` re-renders the PNG icons from `src/assets/oystercatcher.svg`.

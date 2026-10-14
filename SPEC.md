@@ -1,0 +1,289 @@
+# OysterCatcher: Build Spec (MVP)
+
+A private PWA for two people (David and his wife) to log oyster dates, rate each oyster separately, keep The Photo, and map where the oysters came from and where we ate them.
+
+Two users. No public access. iPhone home-screen install is the primary target; desktop browser should also work.
+
+---
+
+## 1. Stack
+
+| Piece | Choice | Notes |
+|---|---|---|
+| Frontend | Vue 3 + Vite, Vue Router | Composition API, `<script setup>`. No Pinia or Vuex: shared state (auth session, profiles, offline queue status) lives in plain composables with module-level `ref`/`reactive` (e.g. `useAuth()`, `useQueue()`). |
+| PWA | `vite-plugin-pwa` (Workbox) | Installable, app shell cached, offline queue (see 7) |
+| Backend | Supabase (free tier) | Postgres + PostGIS, Auth, Storage, `@supabase/supabase-js` v2 client. No custom server code. |
+| Map | MapLibre GL JS | Basemap: OpenFreeMap Liberty style (`https://tiles.openfreemap.org/styles/liberty`). Do NOT use the default OSM raster tiles. |
+| Geocoding | Nominatim (OSM) | Search-to-fly only. Max 1 request/sec, debounce input, show OSM attribution. |
+| Local storage | `idb-keyval` | Offline queue for photos and pending writes |
+| Hosting | Netlify (static) | SPA redirect: `/* /index.html 200` |
+| Repo | `BrightRainSolutions/oystercatcher` | Private (matters for the keep-alive workflow, see 9) |
+
+Environment variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. The anon key is safe in the client because RLS does the gating.
+
+---
+
+## 2. Vocabulary
+
+- **Oyster Date** (UI) = `visits` (DB). One trip to one place on one day.
+- **Tasting** = one oyster type eaten on one Oyster Date. Shared fact.
+- **Rating** = one person's opinion of one tasting. Two per tasting, max.
+- **The Photo** = the visit's cover photo (the presentation shot). Required in spirit, skippable in practice.
+
+---
+
+## 3. Data model
+
+Enable the `postgis` extension. All ids are `uuid` with `default gen_random_uuid()`, but the client generates ids itself (`crypto.randomUUID()`) so records created offline keep stable ids.
+
+Locations are stored as plain `lat`/`lng` numeric columns (easy for the JS client to write) with a PostGIS generated column alongside for spatial queries:
+
+```sql
+location geography(Point, 4326)
+  generated always as (st_setsrid(st_makepoint(lng, lat), 4326)::geography) stored
+```
+
+### profiles
+| column | type | notes |
+|---|---|---|
+| id | uuid PK | = `auth.users.id` |
+| display_name | text | |
+| color | text | hex; used for this person's scores in charts and lists |
+
+### oysters (catalog)
+| column | type | notes |
+|---|---|---|
+| id | uuid PK | |
+| name | text not null | e.g. "Kusshi", "Hama Hama" |
+| grower | text | |
+| growing_area | text | e.g. "Hood Canal", "Duxbury Bay" |
+| region | text | e.g. "Puget Sound", "Cape Cod" |
+| country | text | default 'USA' |
+| species | enum `oyster_species` | `pacific`, `atlantic`, `kumamoto`, `olympia`, `european_flat` |
+| cultivation | text | optional: beach, tumbled, suspended, bottom |
+| lat, lng | numeric(9,6) | nullable. Null = "needs a pin" |
+| location | geography | generated, see above |
+| location_approx | boolean | default true for seeded rows |
+| oysterater_url | text | optional link out |
+| notes | text | |
+| created_by | uuid → profiles | |
+| created_at | timestamptz | default now() |
+
+Unique on `(lower(name), coalesce(grower, ''))`.
+
+### places
+| column | type | notes |
+|---|---|---|
+| id | uuid PK | |
+| name | text not null | |
+| city | text | |
+| address | text | |
+| url | text | |
+| lat, lng | numeric(9,6) | |
+| location | geography | generated |
+| created_by, created_at | | |
+
+### visits (Oyster Dates)
+| column | type | notes |
+|---|---|---|
+| id | uuid PK | |
+| place_id | uuid → places | nullable = a home night |
+| visited_on | date not null | default current_date (client sends local date, not UTC) |
+| notes | text | |
+| cover_photo_id | uuid → photos | nullable, `on delete set null` |
+| created_by, created_at | | |
+
+`unique nulls not distinct (place_id, visited_on)`. This is what makes "New Oyster Date" a find-or-create.
+
+### tastings
+| column | type | notes |
+|---|---|---|
+| id | uuid PK | |
+| visit_id | uuid → visits | `on delete cascade` |
+| oyster_id | uuid → oysters | |
+| price_each | numeric(6,2) | optional |
+| created_by, created_at | | |
+
+`unique (visit_id, oyster_id)`. If both people add the Kusshi, it's one tasting.
+
+### ratings
+| column | type | notes |
+|---|---|---|
+| id | uuid PK | |
+| tasting_id | uuid → tastings | `on delete cascade` |
+| user_id | uuid → profiles | default `auth.uid()` |
+| overall | smallint | 1 to 5 |
+| brininess | smallint | 1 to 5, nullable |
+| sweetness | smallint | 1 to 5, nullable |
+| creaminess | smallint | 1 to 5, nullable |
+| minerality | smallint | 1 to 5, nullable |
+| brightness | smallint | 1 to 5, nullable |
+| texture | smallint | 1 to 5, nullable |
+| size | smallint | 1 to 5, nullable |
+| would_order_again | boolean | |
+| note | text | |
+| updated_at | timestamptz | |
+
+`unique (tasting_id, user_id)`. Check constraints `between 1 and 5` on every score column.
+
+### photos
+| column | type | notes |
+|---|---|---|
+| id | uuid PK | |
+| visit_id | uuid → visits | not null, `on delete cascade` |
+| tasting_id | uuid → tastings | nullable; set when the photo is a close-up of one oyster |
+| storage_path | text | full image |
+| thumb_path | text | ~400px thumbnail |
+| taken_by | uuid → profiles | |
+| created_at | timestamptz | |
+
+### Views
+- **`oyster_stats`**: per oyster per person: `avg_overall`, `tasting_count`, `last_tasted`, `would_order_again_pct`. Plus a combined row (or a second view `oyster_stats_combined`). Drives map colors and oyster detail.
+- **`visit_summary`**: visit + place name + cover photo thumb path + tasting count + both people's avg overall for that night. Drives the Oyster Dates list.
+
+### Attribute definitions (UI labels)
+Slider endpoints, low to high. Keep the copy playful.
+
+| attribute | 1 | 5 |
+|---|---|---|
+| Overall | meh | marry it |
+| Brininess | pond | ocean spray |
+| Sweetness | none | candy |
+| Creaminess | lean | butter |
+| Minerality | none | licking a penny |
+| Brightness | flat | squeeze of lemon |
+| Texture | soft | crunchy |
+| Size | petite | whopper |
+
+### Schema management
+- Supabase CLI migrations are the source of truth: SQL files in `supabase/migrations/`, applied with `supabase db push` against the linked project. Seed data in `supabase/seed.sql`.
+- Never change schema only through the dashboard or MCP. If a change is made that way for debugging, capture it as a migration before committing.
+- The Supabase MCP server, if configured, runs read-only and scoped to this project; use it for inspection and debugging.
+- David provides the project ref, database password, and a personal access token.
+
+---
+
+## 4. Auth and security
+
+- Supabase Auth, email + password (or magic link). **Signups disabled** in the dashboard. David creates both accounts by hand and inserts their `profiles` rows.
+- RLS on every table:
+  - `oysters`, `places`, `visits`, `tastings`, `photos`: any authenticated user can select, insert, update. Delete only by `created_by`.
+  - `ratings`: any authenticated user can select. Insert, update, delete only where `user_id = auth.uid()`.
+- Storage bucket `photos`: **private**. Authenticated users can read and write. Display via `createSignedUrl` (cache signed URLs in memory for their lifetime). Do not rely on Supabase image transformations (paid tier only); thumbnails are generated client-side.
+
+---
+
+## 5. Screens and flows
+
+### Landing
+Two big buttons, nothing else (plus a small profile/sign-out affordance):
+- **Add Oyster Date** → becomes **Join Tonight at {place}** if a visit already exists for today. Tapping it goes straight into that visit.
+- **See Oyster Dates**
+
+### Add Oyster Date (stepper, 4 steps)
+1. **Where and when.** Place combobox: existing places, sorted nearest-first if geolocation is granted, else most recent. Last option: **+ Add place** (inline form: name, city, pin defaults to current location, editable on a small map). Date defaults to today. Also a "Home" toggle that clears place. On continue: upsert visit on `(place_id, visited_on)` and use whatever id comes back.
+2. **The Photo.** Big camera button (`<input type="file" accept="image/*" capture="environment">`). Show the photo immediately from the local blob. Skippable. Becomes `cover_photo_id`.
+3. **What we ate.** Oyster combobox (search by name, grower, growing area), multi-add as chips. Last option: **+ Add oyster** (inline: name, grower, growing area, species, optional pin; see 6). Each chip creates a tasting (upsert on `visit_id, oyster_id`). Optional price per tasting.
+4. **Rate.** One card per tasting. Overall (big, 1 to 5 shell icons) and Would Order Again (toggle) up top. Other seven sliders in an expandable section. Note field. Small camera button per card for a close-up photo (`tasting_id` set). If the other person has already rated, show their overall as a small badge in their color, but not their full scores until you've saved yours (no anchoring).
+
+Everything autosaves. No final Submit button.
+
+### See Oyster Dates (List / Map toggle)
+- **List:** photo cards, newest first. Thumbnail, place, date, number of oysters, both people's average overall in their colors.
+- **Map:** MapLibre, two toggleable layers:
+  - **Origins:** oysters with a pin. Circle color by combined `avg_overall` (sequential ramp), size by tasting count. Tap → oyster detail.
+  - **Places:** where we've eaten. Distinct symbol. Tap → list of visits there.
+  - Fit bounds to data on load. Keep it crisp and modern; no default OSM look.
+
+### Visit detail
+The Photo full width. Place, date, notes. Each tasting: oyster name and growing area, your scores and hers side by side (simple paired bars per attribute in each person's color), Would Order Again for each, notes, close-up photos. Add another oyster or photo from here.
+
+### Oyster detail
+Name, grower, growing area, species, Oysterater link if set. Mini map of origin (or "Needs a pin" button). Averages per person across all tastings (paired bars). Every time we've had it: date, place, both overalls, thumbnail.
+
+### Pin picker (oyster origin)
+Full-screen MapLibre view with a draggable marker. Tap to drop, drag to adjust. Search box flies to a Nominatim result (debounced, 1 req/sec, attribution shown). **Growing area reuse:** if the oyster's `growing_area` matches another oyster that already has a pin, offer "Use the Hood Canal pin" as a one-tap option. Saving sets `location_approx = false`.
+
+---
+
+## 6. Oyster origin locations
+
+- Location is **optional** when adding an oyster at the table. Unpinned oysters get a "Needs a pin" badge in lists and on oyster detail.
+- A small "Needs a pin (3)" link on the Oyster Dates screen goes to a list of unpinned oysters for couch-time pinning.
+
+---
+
+## 7. Photos and offline
+
+Oyster bars have bad signal. Writes must not fail just because the network is gone.
+
+**Photo pipeline (all browser built-ins):**
+1. `createImageBitmap(file)` (respects EXIF orientation in current Safari).
+2. Draw to `<canvas>`, scale to 1600px long edge → `canvas.toBlob(cb, 'image/jpeg', 0.8)`.
+3. Same again at 400px for the thumbnail.
+4. Store both blobs in IndexedDB (`idb-keyval`) keyed by photo id, render from local blob immediately.
+5. Upload in background to `photos/{visit_id}/{photo_id}.jpg` and `.../{photo_id}_thumb.jpg`, then insert the `photos` row. Delete local blobs after confirmed upload.
+
+**Write queue:**
+- All inserts and updates go through a small queue persisted in IndexedDB. Client-generated UUIDs mean children (tastings, ratings, photos) can reference a parent before it exists on the server.
+- Flush on `online` event, on app focus, and on a timer while pending items exist.
+- **Visit conflict:** if a queued visit upsert hits the `(place_id, visited_on)` constraint (both people created it offline), take the server's id and rewrite the local id on all queued children before flushing them. Same pattern for tastings on `(visit_id, oyster_id)`.
+- Show a subtle "3 pending" indicator when the queue isn't empty. Never block the UI on it.
+
+---
+
+## 8. Seed data
+
+- **Places:** Jax Fish House (Fort Collins, CO) and Elliott's Oyster House (Seattle waterfront, Pier 56). Look up real coordinates at build time; do not guess.
+- **Oysters:** ~30 commonly served oysters, weighted toward Puget Sound / Hood Canal / BC (Elliott's menu territory), plus a handful of common East Coast names. Bay-level approximate coordinates, `location_approx = true`. Put this in a seed SQL file, not a migration.
+
+---
+
+## 9. Keep-alive
+
+Supabase free projects pause after about a week of low activity. Add `.github/workflows/keepalive.yml`:
+- Cron daily (pick an odd minute, not :00).
+- `curl` a `select id from oysters limit 1` via the REST endpoint with the anon key from repo secrets (`SUPABASE_URL`, `SUPABASE_ANON_KEY`). Needs an RLS policy or a tiny `keepalive` table readable by `anon`; prefer the latter so the anon key can't read real data.
+- Repo stays private (GitHub disables scheduled workflows on public repos after 60 days without commits).
+
+---
+
+## 10. Design direction
+
+This should not look like a default CRUD app. It needs pop and personality:
+- Coastal palette: deep sea blue, shell cream, kelp green, a bright accent (lemon or coral). Each person's color is distinct and used consistently.
+- Shell icons for Overall, playful slider copy (see attribute table), fun loading and empty-state messages ("No oysters yet. Tragic.").
+- Big touch targets; this gets used one-handed at a bar with a cocktail fork in the other hand.
+- Photo-forward: The Photo is the hero of every Oyster Date.
+- App icon: a black oystercatcher (original illustration, simple shape).
+- Respect dark mode.
+
+---
+
+## 11. Out of scope for MVP (phase 2)
+
+- Admin screens for managing places and oysters (edit, merge duplicates, delete).
+- Visit-level stats and trends ("our brininess preference over time").
+- Shipped-oyster tracking, grower links, sharing.
+
+---
+
+## 12. Build order
+
+0. Init the local git repo, create the private repo `BrightRainSolutions/oystercatcher` on GitHub (under the org, not a personal account, e.g. `gh repo create BrightRainSolutions/oystercatcher --private --source=. --push`), and push.
+1. Supabase project, schema migration, RLS, storage bucket, keepalive table. Seed file.
+2. Vue scaffold, PWA config, auth, landing.
+3. Add Oyster Date flow online-only, including photo resize and upload.
+4. See Oyster Dates list, visit detail, oyster detail.
+5. Map: list/map toggle, both layers, pin picker with Nominatim.
+6. Offline queue and conflict remapping.
+7. Keep-alive workflow, Netlify deploy, test install on both iPhones.
+
+## 13. Acceptance checks
+
+- Both iPhones can install to home screen and sign in.
+- Creating the same place + date from both phones yields one visit.
+- Photo taken in airplane mode appears immediately and uploads after reconnecting.
+- Ratings from one user cannot be edited by the other (verify via RLS, not just UI).
+- Map shows origins colored by rating and both seeded places.
+- Keep-alive workflow runs green.
