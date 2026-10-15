@@ -22,7 +22,6 @@ npm run dev
    npx supabase db push --include-seed
    ```
 3. Auth → Providers → Email: turn **off** "Allow new users to sign up".
-   Auth → URL Configuration: set Site URL to the Netlify URL and add it (and `http://localhost:5173`) to Redirect URLs, so magic links work.
 4. Auth → Users → "Add user" for each family member (auto-confirm). Signups stay off; adding someone later is the same two steps. Then in the SQL editor, one row per person with a distinct color:
    ```sql
    insert into public.profiles (id, display_name, color) values

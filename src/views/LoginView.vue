@@ -7,13 +7,12 @@ import bird from '../assets/oystercatcher.svg'
 
 const route = useRoute()
 const router = useRouter()
-const { signInWithPassword, sendMagicLink } = useAuth()
+const { signInWithPassword } = useAuth()
 
 const email = ref('')
 const password = ref('')
 const busy = ref(false)
 const error = ref('')
-const sent = ref(false)
 
 async function submit() {
   error.value = ''
@@ -23,23 +22,6 @@ async function submit() {
     router.replace(route.query.next || '/')
   } catch (e) {
     error.value = e.message || 'That did not work.'
-  } finally {
-    busy.value = false
-  }
-}
-
-async function magic() {
-  error.value = ''
-  if (!email.value.trim()) {
-    error.value = 'Email first, then the magic.'
-    return
-  }
-  busy.value = true
-  try {
-    await sendMagicLink(email.value.trim())
-    sent.value = true
-  } catch (e) {
-    error.value = e.message
   } finally {
     busy.value = false
   }
@@ -71,9 +53,7 @@ async function magic() {
         <input v-model="password" class="input" type="password" autocomplete="current-password" />
       </label>
       <p v-if="error" class="err">{{ error }}</p>
-      <p v-if="sent" class="ok">Check your email for a link. Shuck it open.</p>
       <button class="btn primary big block" :disabled="busy || !password">Sign in</button>
-      <button type="button" class="btn ghost block" :disabled="busy" @click="magic">Email me a magic link</button>
     </form>
   </main>
 </template>
@@ -96,5 +76,4 @@ h1 { font-size: 2.6rem; margin: 4px 0 6px; color: var(--sea); }
 }
 .tag { margin: 0; color: var(--muted); }
 .err { color: var(--coral); margin: 0; font-weight: 600; }
-.ok { color: var(--kelp); margin: 0; font-weight: 600; }
 </style>

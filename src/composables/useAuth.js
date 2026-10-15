@@ -80,14 +80,6 @@ async function signInWithPassword(email, password) {
   if (error) throw error
 }
 
-async function sendMagicLink(email) {
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: { shouldCreateUser: false, emailRedirectTo: window.location.origin },
-  })
-  if (error) throw error
-}
-
 async function signOut() {
   await supabase.auth.signOut()
   session.value = null
@@ -107,7 +99,6 @@ export function useAuth() {
     profileFor,
     loadProfiles,
     signInWithPassword,
-    sendMagicLink,
     signOut,
   }
 }

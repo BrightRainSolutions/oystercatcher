@@ -165,7 +165,7 @@ Slider endpoints, low to high. Keep the copy playful.
 
 ## 4. Auth and security
 
-- Supabase Auth, email + password (or magic link). **Signups disabled** in the dashboard. The project owner creates each family member's account by hand and inserts their `profiles` row (distinct color per person).
+- Supabase Auth, email + password only (no magic links: Supabase's built-in mailer only emails org members, and iOS home-screen apps don't share Safari's session). **Signups disabled** in the dashboard. The project owner creates each family member's account by hand and inserts their `profiles` row (distinct color per person).
 - RLS on every table:
   - `oysters`, `places`, `visits`, `tastings`, `photos`: any authenticated user can select, insert, update. Delete only by `created_by`.
   - `ratings`: any authenticated user can select. Insert, update, delete only where `user_id = auth.uid()`.
