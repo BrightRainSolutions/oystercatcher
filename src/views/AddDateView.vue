@@ -374,7 +374,7 @@ function next() {
             <label class="price">
               <span>$</span>
               <input
-                :value="t.price_each ?? ''"
+                :value="t.price_each == null ? '' : Number(t.price_each).toFixed(2)"
                 type="number"
                 inputmode="decimal"
                 step="0.25"
@@ -475,18 +475,29 @@ function next() {
 .price {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   background: var(--surface-2);
   border-radius: 999px;
-  padding: 0 10px;
-  height: 40px;
+  padding: 0 14px;
+  height: 44px;
+  font-size: 17px;
+  font-weight: 600;
+  cursor: text;
 }
 .price input {
-  width: 52px;
+  width: 64px;
   border: 0;
   background: transparent;
   outline: none;
-  font-size: 16px;
+  font: inherit;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+/* No spinner arrows: they ate half the field. */
+.price input::-webkit-outer-spin-button,
+.price input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 .x {
   width: 40px;
