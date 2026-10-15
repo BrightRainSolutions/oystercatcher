@@ -28,7 +28,6 @@ const otherRaters = computed(() => peopleFor(theirs.value.map((r) => r.user_id))
 const myColor = computed(() => me.value?.color || profileFor(user.value?.id).color)
 
 const form = reactive(Object.fromEntries(FIELDS.map((k) => [k, mine.value?.[k] ?? null])))
-const details = ref(ATTRIBUTES.some((a) => form[a.key] != null))
 const savedOnce = ref(!!mine.value)
 const saving = ref(false)
 
@@ -120,13 +119,7 @@ async function onPhoto(file) {
       <span v-else-if="savedOnce" class="small saved">saved</span>
     </div>
 
-    <button type="button" class="more" @click="details = !details">
-      {{ details ? 'Fewer feelings' : 'More feelings' }}
-      <svg viewBox="0 0 24 24" width="18" height="18" :class="{ flip: details }" aria-hidden="true">
-        <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" />
-      </svg>
-    </button>
-    <div v-if="details" class="sliders">
+    <div class="scores">
       <ScoreSlider
         v-for="a in ATTRIBUTES"
         :key="a.key"
@@ -191,9 +184,7 @@ async function onPhoto(file) {
   padding: 0;
   cursor: pointer;
 }
-.more svg { transition: transform 0.2s ease; }
-.more svg.flip { transform: rotate(180deg); }
-.sliders { padding: 4px 0 8px; }
+.scores { padding: 4px 0 8px; }
 .note { margin-top: 8px; }
 .foot { margin-top: 12px; }
 .thumbs { display: flex; gap: 6px; flex-wrap: wrap; }

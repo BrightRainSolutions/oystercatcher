@@ -114,8 +114,9 @@ Unique on `(lower(name), coalesce(grower, ''))`.
 | user_id | uuid → profiles | default `auth.uid()` |
 | overall | smallint | 1 to 5 |
 | brininess | smallint | 1 to 5, nullable |
+| smell_of_the_sea | smallint | 1 to 5, nullable |
 | sweetness | smallint | 1 to 5, nullable |
-| creaminess | smallint | 1 to 5, nullable |
+| creaminess | smallint | 1 to 5, nullable (labeled "Butteriness" in the UI) |
 | minerality | smallint | 1 to 5, nullable |
 | brightness | smallint | 1 to 5, nullable |
 | texture | smallint | 1 to 5, nullable |
@@ -148,8 +149,9 @@ Slider endpoints, low to high. Keep the copy playful.
 |---|---|---|
 | Overall | meh | marry it |
 | Brininess | pond | ocean spray |
+| Smell of the Sea | tap water | Hood Canal at low tide |
 | Sweetness | none | candy |
-| Creaminess | lean | butter |
+| Butteriness (column `creaminess`) | lean | butter |
 | Minerality | none | licking a penny |
 | Brightness | flat | squeeze of lemon |
 | Texture | soft | crunchy |
@@ -184,7 +186,7 @@ Two big buttons, nothing else (plus a small profile/sign-out affordance):
 1. **Where and when.** Place combobox: existing places, sorted nearest-first if geolocation is granted, else most recent. Last option: **+ Add place** (inline form: name, city, pin defaults to current location, editable on a small map). Date defaults to today. Also a "Home" toggle that clears place. On continue: upsert visit on `(place_id, visited_on)` and use whatever id comes back.
 2. **The Photo.** Big "Add The Photo" button (`<input type="file" accept="image/*">`, deliberately no `capture`, so phones offer camera or photo library: the shot may already be taken). Show the photo immediately from the local blob. Skippable. Becomes `cover_photo_id`.
 3. **What we ate.** Oyster combobox (search by name, grower, growing area), multi-add as chips. Last option: **+ Add oyster** (inline: name, grower, growing area, species, optional pin; see 6). Each chip creates a tasting (upsert on `visit_id, oyster_id`). Optional price per tasting.
-4. **Rate.** One card per tasting. Overall (big, 1 to 5 shell icons) and Would Order Again (toggle) up top. Other seven sliders in an expandable section. Note field. Small camera button per card for a close-up photo (`tasting_id` set). If other family members have already rated, show each one's overall as a small badge in their color, but not their full scores until you've saved yours (no anchoring).
+4. **Rate.** One card per tasting. Overall (big, 1 to 5 shell icons) and Would Order Again (toggle) up top. The other eight attributes always visible as 1–5 sliders with tick marks. An unrated slider parks a hollow knob in the middle on a grey track with a "Not rated" tag, so it can't be mistaken for a 3. The first deliberate touch sets it (a tap on the parked knob means 3; vertical scrolling never sets a score), and the live word beside the value tracks the end labels ("leaning ocean spray"). An × clears it. Untouched means no score is saved; no prompts about unrated attributes. Note field. Small camera button per card for a close-up photo (`tasting_id` set). If other family members have already rated, show each one's overall as a small badge in their color, but not their full scores until you've saved yours (no anchoring).
 
 Everything autosaves. No final Submit button.
 

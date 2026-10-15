@@ -403,6 +403,7 @@ export async function removeTasting(id) {
 const SCORE_FIELDS = [
   'overall',
   'brininess',
+  'smell_of_the_sea',
   'sweetness',
   'creaminess',
   'minerality',

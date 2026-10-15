@@ -2,8 +2,10 @@ export const OVERALL = { key: 'overall', label: 'Overall', low: 'meh', high: 'ma
 
 export const ATTRIBUTES = [
   { key: 'brininess', label: 'Brininess', low: 'pond', high: 'ocean spray' },
+  { key: 'smell_of_the_sea', label: 'Smell of the Sea', low: 'tap water', high: 'Hood Canal at low tide' },
   { key: 'sweetness', label: 'Sweetness', low: 'none', high: 'candy' },
-  { key: 'creaminess', label: 'Creaminess', low: 'lean', high: 'butter' },
+  // Stored as `creaminess` (the industry term); we call it butteriness.
+  { key: 'creaminess', label: 'Butteriness', low: 'lean', high: 'butter' },
   { key: 'minerality', label: 'Minerality', low: 'none', high: 'licking a penny' },
   { key: 'brightness', label: 'Brightness', low: 'flat', high: 'squeeze of lemon' },
   { key: 'texture', label: 'Texture', low: 'soft', high: 'crunchy' },
