@@ -24,7 +24,7 @@ values
   ('Totten Inlet Virginica','Taylor Shellfish Farms',  'Totten Inlet',        'Puget Sound',      'USA',    'atlantic', 'suspended', 47.165, -122.975, true),
   ('Olympia',              'Taylor Shellfish Farms',   'Totten Inlet',        'Puget Sound',      'USA',    'olympia',  'beach',     47.165, -122.975, true),
   ('Chelsea Gem',          'Chelsea Farms',            'Eld Inlet',           'Puget Sound',      'USA',    'pacific',  'tumbled',   47.100, -122.965, true),
-  ('Barron Point',         null,                       'Little Skookum Inlet','Puget Sound',      'USA',    'pacific',  'beach',     47.130, -123.075, true),
+  ('Barron Point',         'Hama Hama Oyster Co.',     'Totten Inlet',        'Puget Sound',      'USA',    'pacific',  'bag-to-beach', 47.130, -123.075, true),
   ('Pickering Passage',    null,                       'Pickering Passage',   'Puget Sound',      'USA',    'pacific',  'beach',     47.275, -122.900, true),
   ('Treasure Cove',        null,                       'Case Inlet',          'Puget Sound',      'USA',    'pacific',  'beach',     47.375, -122.830, true),
   -- North Puget Sound
@@ -53,3 +53,7 @@ values
   ('Beausoleil',           null,                       'Miramichi Bay',       'New Brunswick',    'Canada', 'atlantic', 'suspended', 47.240, -65.070,  true),
   ('Malpeque',             null,                       'Malpeque Bay',        'Prince Edward Island','Canada','atlantic','bottom',   46.550, -63.730,  true)
 on conflict do nothing;
+
+-- Oysterater links (optional; shown on oyster detail)
+update public.oysters set oysterater_url = 'https://oysterater.com/oyster/barron-point'
+where lower(name) = 'barron point' and oysterater_url is null;
