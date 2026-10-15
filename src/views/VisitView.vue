@@ -3,9 +3,9 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
 import { useQueue } from '../composables/useQueue'
-import { addPhoto, getVisitBundle, updateVisit } from '../lib/data'
+import { addPhoto, getVisitBundle, lastRatingFor, loadMyRatings, updateVisit } from '../lib/data'
 import { ALL_SCORES, loadingLine } from '../lib/attributes'
-import { relativeDay } from '../lib/dates'
+import { formatDate, relativeDay } from '../lib/dates'
 import TopBar from '../components/TopBar.vue'
 import PhotoImg from '../components/PhotoImg.vue'
 import PairedBars from '../components/PairedBars.vue'
@@ -14,7 +14,7 @@ import ShellRating from '../components/ShellRating.vue'
 
 const route = useRoute()
 const router = useRouter()
-const { user, peopleFor } = useAuth()
+const { user, me, peopleFor, profileFor } = useAuth()
 const { aliases, resolveId } = useQueue()
 
 const bundle = ref(null)
@@ -22,8 +22,11 @@ const loading = ref(true)
 const notes = ref('')
 const viewer = ref(null)
 
+// My ratings from other nights, for "Your last" on oysters I haven't rated tonight.
+const myRatings = ref([])
+
 async function load() {
-  bundle.value = await getVisitBundle(route.params.id)
+  ;[bundle.value, myRatings.value] = await Promise.all([getVisitBundle(route.params.id), loadMyRatings(user.value?.id)])
   notes.value = bundle.value?.visit?.notes || ''
   loading.value = false
 }
@@ -66,6 +69,10 @@ async function onPhoto(file) {
 }
 
 const editTo = (step) => ({ name: 'add', params: { visitId: visit.value.id }, query: { step } })
+const rateTo = (t) => ({ name: 'add', params: { visitId: visit.value.id }, query: { step: 4, t: t.id } })
+const myColor = computed(() => me.value?.color || profileFor(user.value?.id).color)
+const lastFor = (t) => lastRatingFor(myRatings.value, t.oyster_id, t.id)
+const shortDate = (iso) => formatDate(iso, { month: 'short', day: 'numeric' })
 </script>
 
 <template>
@@ -116,8 +123,17 @@ const editTo = (step) => ({ name: 'add', params: { visitId: visit.value.id }, qu
             </div>
           </header>
 
-          <p v-if="!t.ratings.length" class="small muted">Nobody has rated this one yet.</p>
-          <ul v-else class="people">
+          <div v-if="!iRated(t)" class="unrated row">
+            <span class="small">
+              <span class="muted">You haven't rated it tonight</span>
+              <template v-if="lastFor(t)">
+                · Your last: <strong :style="{ color: myColor }">{{ lastFor(t).overall }} · {{ shortDate(lastFor(t).visited_on) }}</strong>
+              </template>
+            </span>
+            <div class="spacer" />
+            <RouterLink :to="rateTo(t)" class="btn rate-btn">Rate</RouterLink>
+          </div>
+          <ul v-if="t.ratings.length" class="people">
             <li v-for="p in ratersOf(t)" :key="p.id" class="person" :style="{ '--c': p.color }">
               <div class="row">
                 <span class="pname">{{ p.display_name }}</span>
@@ -188,6 +204,13 @@ const editTo = (step) => ({ name: 'add', params: { visitId: visit.value.id }, qu
   font-size: 1.35rem;
   text-decoration: none;
 }
+.unrated {
+  margin-top: 10px;
+  padding: 8px 8px 8px 12px;
+  border: 1.5px dashed var(--line);
+  border-radius: var(--radius-sm);
+}
+.rate-btn { min-height: 36px; padding: 0 16px; font-size: 0.85rem; }
 .people { list-style: none; padding: 0; margin: 12px 0 14px; }
 .person { border-left: 4px solid var(--c); padding: 4px 0 4px 10px; }
 .person + .person { margin-top: 8px; }

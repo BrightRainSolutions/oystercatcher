@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuth } from '../composables/useAuth'
-import { getOysterBundle } from '../lib/data'
+import { getOysterBundle, lastRatingFor, loadMyRatings } from '../lib/data'
 import { ALL_SCORES, loadingLine, speciesLabel } from '../lib/attributes'
 import { formatDate } from '../lib/dates'
 import TopBar from '../components/TopBar.vue'
@@ -11,12 +11,13 @@ import PairedBars from '../components/PairedBars.vue'
 import PhotoImg from '../components/PhotoImg.vue'
 
 const route = useRoute()
-const { peopleFor, shortName } = useAuth()
+const { user, me, peopleFor, profileFor, shortName } = useAuth()
 const bundle = ref(null)
+const myRatings = ref([])
 const loading = ref(true)
 
 async function load() {
-  bundle.value = await getOysterBundle(route.params.id)
+  ;[bundle.value, myRatings.value] = await Promise.all([getOysterBundle(route.params.id), loadMyRatings(user.value?.id)])
   loading.value = false
 }
 onMounted(load)
@@ -30,7 +31,6 @@ const raters = computed(() => peopleFor((bundle.value?.stats || []).map((s) => s
 const legend = computed(() =>
   raters.value.map((p) => ({ ...p, display_name: `${p.display_name} (${statFor(p.id)?.tasting_count || 0})` })),
 )
-const ratersOf = (t) => peopleFor((t.ratings || []).filter((r) => r.overall != null).map((r) => r.user_id))
 
 const rows = computed(() =>
   ALL_SCORES.map((a) => ({
@@ -38,7 +38,21 @@ const rows = computed(() =>
     values: raters.value.map((p) => ({ color: p.color, value: statFor(p.id)?.[`avg_${a.key}`] ?? null })),
   })),
 )
-const overallOf = (t, pid) => t.ratings?.find((r) => r.user_id === pid)?.overall ?? null
+// Includes my ratings still waiting to sync, which the server rows don't have yet.
+const myByTasting = computed(() => new Map(myRatings.value.map((r) => [r.tasting_id, r])))
+const overallOf = (t, pid) =>
+  t.ratings?.find((r) => r.user_id === pid)?.overall ??
+  (pid === user.value?.id ? (myByTasting.value.get(t.id)?.overall ?? null) : null)
+const ratersOfRow = (t) => {
+  const ids = (t.ratings || []).filter((r) => r.overall != null).map((r) => r.user_id)
+  if (myByTasting.value.has(t.id)) ids.push(user.value?.id)
+  return peopleFor(ids)
+}
+const iRatedRow = (t) => overallOf(t, user.value?.id) != null
+
+const latest = computed(() => (o.value ? lastRatingFor(myRatings.value, o.value.id) : null))
+const myColor = computed(() => me.value?.color || profileFor(user.value?.id).color)
+const rateTo = (t) => ({ name: 'add', params: { visitId: t.visit.id }, query: { step: 4, t: t.id } })
 const thumbOf = (t) => t.photos?.[0]?.thumb_path || t.visit?.cover?.thumb_path || null
 </script>
 
@@ -55,6 +69,11 @@ const thumbOf = (t) => t.photos?.[0]?.thumb_path || t.visit?.cover?.thumb_path |
           {{ [o.grower, o.growing_area, o.region, speciesLabel(o.species), o.cultivation].filter(Boolean).join(' · ') }}
         </p>
         <a v-if="o.oysterater_url" :href="o.oysterater_url" target="_blank" rel="noopener" class="small">On Oysterater ↗</a>
+        <p v-if="latest" class="latest">
+          Your latest:
+          <strong :style="{ color: myColor }">{{ latest.overall }}</strong>
+          <span class="muted"> · {{ formatDate(latest.visited_on) }}</span>
+        </p>
       </section>
 
       <section>
@@ -86,15 +105,18 @@ const thumbOf = (t) => t.photos?.[0]?.thumb_path || t.visit?.cover?.thumb_path |
       <section>
         <h3>Every time we've had it</h3>
         <p v-if="!bundle.tastings.length" class="muted">Never! Fix that.</p>
-        <RouterLink v-for="t in bundle.tastings" :key="t.id" :to="`/visit/${t.visit.id}`" class="hist card">
-          <div class="th"><PhotoImg :path="thumbOf(t)" /></div>
-          <div class="hmeta">
-            <strong>{{ t.visit.place?.name || 'Home' }}</strong>
-            <div class="small muted">{{ formatDate(t.visit.visited_on) }}</div>
-          </div>
+        <div v-for="t in bundle.tastings" :key="t.id" class="hist card">
+          <RouterLink :to="`/visit/${t.visit.id}`" class="hlink">
+            <div class="th"><PhotoImg :path="thumbOf(t)" /></div>
+            <div class="hmeta">
+              <strong>{{ t.visit.place?.name || 'Home' }}</strong>
+              <div class="small muted">{{ formatDate(t.visit.visited_on) }}</div>
+            </div>
+          </RouterLink>
           <div class="overalls">
+            <RouterLink v-if="!iRatedRow(t)" :to="rateTo(t)" class="btn rate-btn">Rate</RouterLink>
             <span
-              v-for="p in ratersOf(t)"
+              v-for="p in ratersOfRow(t)"
               :key="p.id"
               class="ov"
               :style="{ background: p.color }"
@@ -103,7 +125,7 @@ const thumbOf = (t) => t.photos?.[0]?.thumb_path || t.visit?.cover?.thumb_path |
               {{ overallOf(t, p.id) }}
             </span>
           </div>
-        </RouterLink>
+        </div>
       </section>
     </main>
   </div>
@@ -121,17 +143,26 @@ const thumbOf = (t) => t.photos?.[0]?.thumb_path || t.visit?.cover?.thumb_path |
   text-decoration: none;
   border: 3px dashed var(--lemon);
 }
+.latest { margin: 10px 0 0; font-size: 1.05rem; }
 .hist {
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 10px;
   margin-bottom: 10px;
+}
+.hlink {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
   text-decoration: none;
 }
+.rate-btn { min-height: 34px; padding: 0 14px; font-size: 0.85rem; }
 .th { width: 64px; height: 64px; border-radius: 12px; overflow: hidden; flex: none; }
 .hmeta { flex: 1; min-width: 0; }
-.overalls { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; max-width: 45%; }
+.overalls { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 4px; max-width: 45%; }
 .ov {
   display: grid;
   place-items: center;

@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useAuth } from '../composables/useAuth'
 import { ATTRIBUTES, ALL_SCORES, OVERALL } from '../lib/attributes'
+import { formatDate } from '../lib/dates'
 import { addPhoto, saveRating } from '../lib/data'
 import ShellRating from './ShellRating.vue'
 import ScoreSlider from './ScoreSlider.vue'
@@ -14,6 +15,8 @@ const props = defineProps({
   tasting: { type: Object, required: true },
   visitId: { type: String, required: true },
   photos: { type: Array, default: () => [] },
+  // My most recent rating of this oyster from another night (see lastRatingFor)
+  last: { type: Object, default: null },
 })
 const emit = defineEmits(['changed'])
 
@@ -59,6 +62,17 @@ onBeforeUnmount(() => {
 
 const iHaveRated = computed(() => savedOnce.value && form.overall != null)
 
+// "Your last" hint + one-tap copy, only while tonight's card is still blank.
+// Never applied automatically: an untouched card saves nothing.
+const SCORE_KEYS = [...ALL_SCORES.map((a) => a.key), 'would_order_again']
+const blank = computed(() => !mine.value && SCORE_KEYS.every((k) => form[k] == null))
+const lastLabel = computed(() =>
+  props.last ? `${props.last.overall} · ${formatDate(props.last.visited_on, { month: 'short', day: 'numeric' })}` : '',
+)
+function startFromLast() {
+  for (const k of SCORE_KEYS) form[k] = props.last[k] ?? null
+}
+
 // One bar per person who rated, me first.
 const compareLegend = computed(() => [{ ...profileFor(user.value?.id), color: myColor.value }, ...otherRaters.value])
 const compareRows = computed(() =>
@@ -100,6 +114,12 @@ async function onPhoto(file) {
         </template>
       </div>
     </header>
+
+    <div v-if="last && blank" class="last row">
+      <span class="small">Your last: <strong :style="{ color: myColor }">{{ lastLabel }}</strong></span>
+      <div class="spacer" />
+      <button type="button" class="btn small-btn" @click="startFromLast">Start from it</button>
+    </div>
 
     <div class="overall">
       <ShellRating v-model="form.overall" :size="54" :color="myColor" />
@@ -156,6 +176,7 @@ async function onPhoto(file) {
 
 <style scoped>
 .rcard + .rcard { margin-top: 16px; }
+.rcard { scroll-margin-top: calc(72px + var(--safe-top)); }
 .head { display: flex; align-items: flex-start; gap: 10px; justify-content: space-between; }
 .head h3 { margin: 0; font-size: 1.35rem; }
 .sub { margin: 2px 0 0; }
@@ -169,6 +190,13 @@ async function onPhoto(file) {
   border-radius: 999px;
 }
 .overall { margin: 14px 0 6px; }
+.last {
+  margin-top: 12px;
+  padding: 8px 8px 8px 12px;
+  border: 1.5px dashed var(--line);
+  border-radius: var(--radius-sm);
+}
+.small-btn { min-height: 36px; padding: 0 14px; font-size: 0.85rem; }
 .ends { display: flex; justify-content: space-between; max-width: 290px; padding: 0 4px; }
 .again { margin: 10px 0 4px; }
 .saved { color: var(--kelp); font-weight: 700; }

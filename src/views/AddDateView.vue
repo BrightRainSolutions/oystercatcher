@@ -1,7 +1,8 @@
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQueue } from '../composables/useQueue'
+import { useAuth } from '../composables/useAuth'
 import {
   addPhoto,
   addTasting,
@@ -9,6 +10,8 @@ import {
   createPlace,
   findOrCreateVisit,
   getVisitBundle,
+  lastRatingFor,
+  loadMyRatings,
   loadOysters,
   loadPlaces,
   removeTasting,
@@ -46,11 +49,22 @@ async function reload() {
   bundle.value = await getVisitBundle(visitId.value)
 }
 
+// My ratings from other nights, for the "Your last" hint on each rating card.
+const { user } = useAuth()
+const myRatings = ref([])
+const lastFor = (t) => lastRatingFor(myRatings.value, t.oyster_id, t.id)
+
 onMounted(async () => {
-  const [p, o] = await Promise.all([loadPlaces(), loadOysters(), reload()])
+  const [p, o, mine] = await Promise.all([loadPlaces(), loadOysters(), loadMyRatings(user.value?.id), reload()])
   places.value = p
   oysters.value = o
+  myRatings.value = mine
   loading.value = false
+  // Arriving from an oyster's history (?t=<tasting id>): jump to that card.
+  if (route.query.t) {
+    await nextTick()
+    document.getElementById(`tasting-${route.query.t}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  }
   here.value = await getPosition()
   if (here.value && !newPlace.lat) Object.assign(newPlace, { lat: here.value.lat, lng: here.value.lng })
 })
@@ -399,10 +413,12 @@ function next() {
         </p>
         <RatingCard
           v-for="t in bundle?.tastings || []"
+          :id="`tasting-${t.id}`"
           :key="t.id"
           :tasting="t"
           :visit-id="visitId"
           :photos="closeupsFor(t.id)"
+          :last="lastFor(t)"
           @changed="reload"
         />
       </section>

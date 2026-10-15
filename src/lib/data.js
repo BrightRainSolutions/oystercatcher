@@ -268,6 +268,58 @@ export async function getOysterBundle(rawId) {
   return { oyster, stats: data.stats || [], tastings }
 }
 
+/**
+ * All of one person's ratings that have an overall score, each tagged with its
+ * oyster and night, newest night first. Ratings are per night (an oyster can
+ * score differently depending on what else was on the plate); this powers the
+ * "your last" hints. Includes ratings still waiting to sync.
+ */
+export async function loadMyRatings(userId) {
+  await loadShadow()
+  if (!userId) return []
+  const rows =
+    (await cachedQuery(`myratings:${userId}`, () =>
+      q(
+        supabase
+          .from('ratings')
+          .select('*, tasting:tastings(oyster_id, visit_id, visit:visits(visited_on))')
+          .eq('user_id', userId),
+      ),
+    )) || []
+  const byTasting = new Map()
+  for (const r of rows) {
+    if (!r.tasting?.visit) continue
+    const { tasting, ...rating } = r
+    byTasting.set(r.tasting_id, {
+      ...rating,
+      oyster_id: tasting.oyster_id,
+      visit_id: tasting.visit_id,
+      visited_on: tasting.visit.visited_on,
+    })
+  }
+  for (const r of Object.values(shadow.ratings)) {
+    if (r.user_id !== userId) continue
+    const known = byTasting.get(r.tasting_id)
+    const t = shadow.tastings[r.tasting_id]
+    const visitedOn = known?.visited_on ?? (t && shadow.visits[t.visit_id]?.visited_on)
+    if (!known && !(t && visitedOn)) continue
+    byTasting.set(r.tasting_id, {
+      ...(known || { oyster_id: t.oyster_id, visit_id: t.visit_id, visited_on: visitedOn }),
+      ...r,
+    })
+  }
+  return [...byTasting.values()]
+    .filter((r) => r.overall != null)
+    .sort(
+      (a, b) =>
+        b.visited_on.localeCompare(a.visited_on) || String(b.updated_at || '').localeCompare(String(a.updated_at || '')),
+    )
+}
+
+/** My most recent rating of this oyster from any other night, or null. */
+export const lastRatingFor = (myRatings, oysterId, exceptTastingId = null) =>
+  myRatings.find((r) => r.oyster_id === oysterId && r.tasting_id !== exceptTastingId) ?? null
+
 // ---------------------------------------------------------------------------
 // Writes (all queued)
 // ---------------------------------------------------------------------------
