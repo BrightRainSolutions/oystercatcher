@@ -50,6 +50,13 @@ const ratersOfRow = (t) => {
 }
 const iRatedRow = (t) => overallOf(t, user.value?.id) != null
 
+// Oysterater only has pages for oysters it knows, so fall back to its search.
+const oysterater = computed(() =>
+  o.value?.oysterater_url
+    ? { href: o.value.oysterater_url, label: 'On Oysterater ↗' }
+    : { href: `https://www.oysterater.com/?s=${encodeURIComponent(o.value?.name || '')}`, label: 'Search Oysterater ↗' },
+)
+
 const latest = computed(() => (o.value ? lastRatingFor(myRatings.value, o.value.id) : null))
 const myColor = computed(() => me.value?.color || profileFor(user.value?.id).color)
 const rateTo = (t) => ({ name: 'add', params: { visitId: t.visit.id }, query: { step: 4, t: t.id } })
@@ -68,7 +75,7 @@ const thumbOf = (t) => t.photos?.[0]?.thumb_path || t.visit?.cover?.thumb_path |
         <p class="muted facts">
           {{ [o.grower, o.growing_area, o.region, speciesLabel(o.species), o.cultivation].filter(Boolean).join(' · ') }}
         </p>
-        <a v-if="o.oysterater_url" :href="o.oysterater_url" target="_blank" rel="noopener" class="small">On Oysterater ↗</a>
+        <a :href="oysterater.href" target="_blank" rel="noopener" class="small">{{ oysterater.label }}</a>
         <p v-if="latest" class="latest">
           Your latest:
           <strong :style="{ color: myColor }">{{ latest.overall }}</strong>

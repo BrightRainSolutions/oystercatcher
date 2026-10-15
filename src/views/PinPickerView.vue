@@ -1,10 +1,11 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import maplibregl from 'maplibre-gl'
 import { getOysterBundle, loadOysters, updateOyster } from '../lib/data'
-import { OFM_STYLE, nominatimSearch } from '../lib/geo'
+import { OFM_STYLE } from '../lib/geo'
 import TopBar from '../components/TopBar.vue'
+import LocationSearch from '../components/LocationSearch.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -12,10 +13,7 @@ const router = useRouter()
 const oyster = ref(null)
 const allOysters = ref([])
 const point = ref(null) // { lat, lng }
-const query = ref('')
-const results = ref([])
-const searching = ref(false)
-const searchError = ref('')
+const loaded = ref(false)
 const saving = ref(false)
 const el = ref(null)
 let map = null
@@ -41,7 +39,7 @@ onMounted(async () => {
   const [b, all] = await Promise.all([getOysterBundle(route.params.id), loadOysters()])
   oyster.value = b?.oyster
   allOysters.value = all
-  if (oyster.value?.growing_area && !query.value) query.value = oyster.value.growing_area
+  loaded.value = true
 
   const o = oyster.value
   map = new maplibregl.Map({
@@ -68,31 +66,6 @@ const sameWater = computed(() => {
   return candidates.find((x) => !x.location_approx) || candidates[0] || null
 })
 
-// Debounced Nominatim search (the helper also enforces 1 req/sec).
-let debounce = null
-watch(query, (qq) => {
-  clearTimeout(debounce)
-  searchError.value = ''
-  if (qq.trim().length < 3) {
-    results.value = []
-    return
-  }
-  debounce = setTimeout(async () => {
-    searching.value = true
-    try {
-      results.value = await nominatimSearch(qq.trim())
-    } catch {
-      searchError.value = 'Search is napping. Tap the map instead.'
-    } finally {
-      searching.value = false
-    }
-  }, 700)
-})
-
-function pickResult(r) {
-  setPoint(r.lat, r.lng, true)
-  results.value = []
-}
 
 async function save() {
   if (!point.value) return
@@ -106,16 +79,7 @@ async function save() {
   <div class="picker">
     <TopBar :title="oyster ? `Pin ${oyster.name}` : 'Pin'" back />
     <div class="search">
-      <input v-model="query" class="input" type="search" placeholder="Search a bay, inlet, town…" />
-      <div v-if="results.length || searching || searchError" class="results card">
-        <p v-if="searching" class="small muted">Looking…</p>
-        <p v-if="searchError" class="small muted">{{ searchError }}</p>
-        <button v-for="r in results" :key="`${r.lat},${r.lng}`" class="res" @click="pickResult(r)">{{ r.label }}</button>
-        <p class="attr small muted">
-          Search by <a href="https://nominatim.openstreetmap.org/" target="_blank" rel="noopener">Nominatim</a>
-          · © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors
-        </p>
-      </div>
+      <LocationSearch v-if="loaded" :initial="oyster?.growing_area || ''" @pick="setPoint($event.lat, $event.lng, true)" />
       <button v-if="sameWater" class="btn reuse" @click="setPoint(sameWater.lat, sameWater.lng, true)">
         Use the {{ oyster.growing_area }} pin
       </button>
@@ -132,27 +96,6 @@ async function save() {
 <style scoped>
 .picker { height: 100dvh; display: flex; flex-direction: column; }
 .search { position: relative; padding: 0 16px 10px; z-index: 10; }
-.results {
-  position: absolute;
-  left: 16px;
-  right: 16px;
-  top: 58px;
-  max-height: 50vh;
-  overflow-y: auto;
-  padding: 6px;
-}
-.res {
-  display: block;
-  width: 100%;
-  text-align: left;
-  border: 0;
-  background: none;
-  padding: 12px;
-  border-radius: 10px;
-  cursor: pointer;
-}
-.res:hover { background: var(--surface-2); }
-.attr { padding: 6px 12px 2px; margin: 0; }
 .reuse { margin-top: 8px; background: var(--lemon); color: var(--ink); }
 .map { flex: 1; }
 .bar {

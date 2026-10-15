@@ -27,6 +27,7 @@ import ToggleSwitch from '../components/ToggleSwitch.vue'
 import CameraButton from '../components/CameraButton.vue'
 import PhotoImg from '../components/PhotoImg.vue'
 import RatingCard from '../components/RatingCard.vue'
+import LocationSearch from '../components/LocationSearch.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -162,12 +163,10 @@ function startAddOyster(name) {
   Object.assign(newOyster, { name: name || '', grower: '', growing_area: '', species: '', pin: false, lat: null, lng: null })
 }
 
+// No default point: where you're sitting is rarely where the oyster grows.
+// The search starts from the growing area instead.
 function togglePin() {
   newOyster.pin = !newOyster.pin
-  if (newOyster.pin && newOyster.lat == null && here.value) {
-    newOyster.lat = here.value.lat
-    newOyster.lng = here.value.lng
-  }
 }
 
 async function saveNewOyster() {
@@ -363,6 +362,12 @@ function next() {
           <button type="button" class="btn ghost" @click="togglePin">
             {{ newOyster.pin ? 'Skip the pin for now' : 'Drop a pin where it grows' }}
           </button>
+          <LocationSearch
+            v-if="newOyster.pin"
+            :initial="newOyster.growing_area.trim()"
+            placeholder="Search where it grows, e.g. York River VA"
+            @pick="Object.assign(newOyster, { lat: $event.lat, lng: $event.lng })"
+          />
           <MiniMap
             v-if="newOyster.pin"
             :lat="newOyster.lat"

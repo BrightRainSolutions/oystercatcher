@@ -56,7 +56,12 @@ watch(
   ([lat, lng]) => {
     if (!map || lat == null || lng == null) return
     placeMarker(lng, lat)
-    if (!props.editable || map.getZoom() < 6) map.jumpTo({ center: [lng, lat], zoom: Math.max(map.getZoom(), props.zoom) })
+    // Recenter when the point moves off-screen (e.g. a search result), but not
+    // for nudges made by tapping or dragging within the current view.
+    const offscreen = !map.getBounds().contains([lng, lat])
+    if (!props.editable || map.getZoom() < 6 || offscreen) {
+      map.jumpTo({ center: [lng, lat], zoom: Math.max(map.getZoom(), props.zoom) })
+    }
   },
 )
 
