@@ -126,15 +126,9 @@ watch(isHome, (h) => {
 })
 
 // ---------------------------------------------------------------- Step 2
-const developing = ref(false)
 async function onCover(file) {
-  developing.value = true
-  try {
-    await addPhoto(file, { visitId: visitId.value, setCover: true })
-    await reload()
-  } finally {
-    developing.value = false
-  }
+  await addPhoto(file, { visitId: visitId.value, setCover: true })
+  await reload()
 }
 
 // ---------------------------------------------------------------- Step 3
@@ -309,10 +303,9 @@ function next() {
           />
         </div>
         <CameraButton
-          :label="bundle?.visit?.cover_photo_id ? 'Retake' : 'Take The Photo'"
+          :label="bundle?.visit?.cover_photo_id ? 'Replace' : 'Add The Photo'"
           :small="!!bundle?.visit?.cover_photo_id"
-          :busy="developing"
-          @file="onCover"
+          :save="onCover"
         />
       </section>
 

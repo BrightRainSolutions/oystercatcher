@@ -182,7 +182,7 @@ Two big buttons, nothing else (plus a small profile/sign-out affordance):
 
 ### Add Oyster Date (stepper, 4 steps)
 1. **Where and when.** Place combobox: existing places, sorted nearest-first if geolocation is granted, else most recent. Last option: **+ Add place** (inline form: name, city, pin defaults to current location, editable on a small map). Date defaults to today. Also a "Home" toggle that clears place. On continue: upsert visit on `(place_id, visited_on)` and use whatever id comes back.
-2. **The Photo.** Big camera button (`<input type="file" accept="image/*" capture="environment">`). Show the photo immediately from the local blob. Skippable. Becomes `cover_photo_id`.
+2. **The Photo.** Big "Add The Photo" button (`<input type="file" accept="image/*">`, deliberately no `capture`, so phones offer camera or photo library: the shot may already be taken). Show the photo immediately from the local blob. Skippable. Becomes `cover_photo_id`.
 3. **What we ate.** Oyster combobox (search by name, grower, growing area), multi-add as chips. Last option: **+ Add oyster** (inline: name, grower, growing area, species, optional pin; see 6). Each chip creates a tasting (upsert on `visit_id, oyster_id`). Optional price per tasting.
 4. **Rate.** One card per tasting. Overall (big, 1 to 5 shell icons) and Would Order Again (toggle) up top. Other seven sliders in an expandable section. Note field. Small camera button per card for a close-up photo (`tasting_id` set). If other family members have already rated, show each one's overall as a small badge in their color, but not their full scores until you've saved yours (no anchoring).
 

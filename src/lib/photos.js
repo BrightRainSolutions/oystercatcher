@@ -36,7 +36,16 @@ function resize(source, longEdge) {
 }
 
 export async function processPhoto(file) {
-  const bmp = await decode(file)
+  let bmp
+  try {
+    bmp = await decode(file)
+  } catch (e) {
+    // Typically an iPhone HEIC picked on a desktop browser that can't decode it.
+    throw Object.assign(new Error('Could not decode image'), {
+      cause: e,
+      userMessage: "Couldn't open that photo. If it's a HEIC from an iPhone, add it from the phone or use a JPEG.",
+    })
+  }
   const full = await resize(bmp, FULL)
   const thumb = await resize(bmp, THUMB)
   bmp.close?.()

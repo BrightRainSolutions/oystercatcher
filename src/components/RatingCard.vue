@@ -31,7 +31,6 @@ const form = reactive(Object.fromEntries(FIELDS.map((k) => [k, mine.value?.[k] ?
 const details = ref(ATTRIBUTES.some((a) => form[a.key] != null))
 const savedOnce = ref(!!mine.value)
 const saving = ref(false)
-const shooting = ref(false)
 
 let timer = null
 let dirty = false
@@ -75,13 +74,8 @@ const compareRows = computed(() =>
 const showCompare = ref(false)
 
 async function onPhoto(file) {
-  shooting.value = true
-  try {
-    await addPhoto(file, { visitId: props.visitId, tastingId: props.tasting.id })
-    emit('changed')
-  } finally {
-    shooting.value = false
-  }
+  await addPhoto(file, { visitId: props.visitId, tastingId: props.tasting.id })
+  emit('changed')
 }
 </script>
 
@@ -147,7 +141,7 @@ async function onPhoto(file) {
     <textarea v-model.lazy="form.note" class="input note" rows="2" placeholder="Tasting notes, hot takes, regrets…" />
 
     <div class="row wrap foot">
-      <CameraButton small label="Close-up" :busy="shooting" @file="onPhoto" />
+      <CameraButton small label="Close-up" :save="onPhoto" />
       <div class="thumbs">
         <div v-for="p in photos" :key="p.id" class="thumb">
           <PhotoImg :photo-id="p.id" :path="p.thumb_path" />

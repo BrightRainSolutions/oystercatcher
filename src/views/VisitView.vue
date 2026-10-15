@@ -20,7 +20,6 @@ const { aliases, resolveId } = useQueue()
 const bundle = ref(null)
 const loading = ref(true)
 const notes = ref('')
-const shooting = ref(false)
 const viewer = ref(null)
 
 async function load() {
@@ -62,13 +61,8 @@ async function saveNotes() {
 }
 
 async function onPhoto(file) {
-  shooting.value = true
-  try {
-    await addPhoto(file, { visitId: visit.value.id, setCover: !visit.value.cover_photo_id })
-    await load()
-  } finally {
-    shooting.value = false
-  }
+  await addPhoto(file, { visitId: visit.value.id, setCover: !visit.value.cover_photo_id })
+  await load()
 }
 
 const editTo = (step) => ({ name: 'add', params: { visitId: visit.value.id }, query: { step } })
@@ -107,7 +101,7 @@ const editTo = (step) => ({ name: 'add', params: { visitId: visit.value.id }, qu
           <RouterLink :to="editTo(3)" class="btn sea">+ Oyster</RouterLink>
           <RouterLink :to="editTo(4)" class="btn">Rate</RouterLink>
           <div class="spacer" />
-          <CameraButton small label="Photo" :busy="shooting" @file="onPhoto" />
+          <CameraButton small label="Photo" :save="onPhoto" />
         </div>
 
         <p v-if="!bundle.tastings.length" class="empty">No oysters yet. Tragic.</p>
