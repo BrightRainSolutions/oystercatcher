@@ -23,7 +23,9 @@ async function onChange(e) {
     await props.save(file)
   } catch (err) {
     console.warn('[photo]', err)
-    error.value = err?.userMessage || "Couldn't save that photo. Try again?"
+    // Keep the raw reason visible: family members won't have a dev console.
+    const reason = [err?.name, err?.message].filter(Boolean).join(': ') || String(err)
+    error.value = err?.userMessage || `Couldn't save that photo. Try again? (${reason})`
   } finally {
     busy.value = false
   }
